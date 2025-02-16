@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html>
+<!-- [Previous head and style sections remain exactly the same] -->
+<head>
+    <title>Fortnite Runner</title>
+    <style>
+        /* [Previous CSS remains exacty the same] */
+        body {
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #1e90ff, #00bfff);
+        }
+
+        #startScreen {
+            text-align: center;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.3);
+        }
+
+        #gameScreen {
+            display: none;
+            position: relative;
+        }
+
+        input {
+            padding: 10px;
+            margin: 10px;
+            font-size: 16px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        canvas {
+            border: 2px solid black;
+            background: white;
+        }
+
+        #score {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 24px;
+            color: black;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+    </style>
+</head>
+<body>
+    <div id="startScreen">
+        <h2>Fortnite Runner</h2>
+        <input type="text" id="playerName" placeholder="Inserisci il tuo nome di Fortnite">
+        <br>
+        <button onclick="startGame()">Gareggia per 1000 V-Bucks!</button>
+    </div>
+
+    <div id="gameScreen">
+        <div id="score">Punti: 0</div>
+        <canvas id="gameCanvas" width="800" height="400"></canvas>
+    </div>
+
+    <script>
+        let player = {
+            x: 50,
+            y: 300,
+            width: 25,          // Hitbox width rimane 50
+            height:30,         // Hitbox height rimane 50
+            visualWidth: 250,    // Dimensione visiva maggiore
+            visualHeight: 150,   // Dimensione visiva maggiore
+            jumping: false,
+            velocity: 0
+        };
+
+        let obstacles = [];
+        let coins = [];
+        let score = 0;
+        let gameLoop;
+        let canvas, ctx;
+
+        // Carica le immagini
+        const playerImg = new Image();
+        playerImg.src = 'https://purepng.com/public/uploads/large/diamond-lama-fortnite-rv0.png';
+
+        const coinImg = new Image();
+        coinImg.src = 'https://e7.pngegg.com/pngimages/409/408/png-clipart-fortnite-battle-royale-xbox-one-battle-pass-playstation-4-vbucks-trademark-playstation-4-thumbnail.png';
+
+        function startGame() {
+            const playerName = document.getElementById('playerName').value;
+            if (!playerName) {
+                alert('Inserisci il tuo nome!');
+                return;
+            }
+
+            document.getElementById('startScreen').style.display = 'none';
+            document.getElementById('gameScreen').style.display = 'block';
+
+            canvas = document.getElementById('gameCanvas');
+            ctx = canvas.getContext('2d');
+
+            // Event Listeners
+            document.addEventListener('keydown', (e) => {
+                if (e.code === 'Space' && !player.jumping) {
+                    player.jumping = true;
+                    player.velocity = -15;
+                }
+            });
+
+            gameLoop = setInterval(update, 20);
+        }
+
+        function update() {
+            // Clear canvas and draw background
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw green floor
+            ctx.fillStyle = '#4CAF50';
+            ctx.fillRect(0, 350, canvas.width, 50);
+
+            // Player physics
+            if (player.jumping) {
+                player.velocity += 0.8;
+                player.y += player.velocity;
+
+                if (player.y >= 300) {
+                    player.y = 300;
+                    player.jumping = false;
+                    player.velocity = 0;
+                }
+            }
+
+            // Generate obstacles
+            if (Math.random() < 0.02) {
+                const height = Math.random() * 100 + 50;
+                obstacles.push({
+                    x: canvas.width,
+                    y: canvas.height - height,
+                    width: 30,
+                    height: height
+                });
+            }
+
+            // Generate coins
+            if (Math.random() < 0.03) {
+                coins.push({
+                    x: canvas.width,
+                    y: Math.random() * 200 + 100,
+                    width: 30,
+                    height: 30
+                });
+            }
+
+            // Move and draw obstacles
+            obstacles.forEach((obstacle, index) => {
+                obstacle.x -= 5;
+                ctx.fillStyle = '#333';
+                ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+
+                // Collision detection
+                if (checkCollision(player, obstacle)) {
+                    gameOver();
+                }
+
+                if (obstacle.x + obstacle.width < 0) {
+                    obstacles.splice(index, 1);
+                }
+            });
+
+            // Move and draw coins
+            coins.forEach((coin, index) => {
+                coin.x -= 5;
+                ctx.drawImage(coinImg, coin.x, coin.y, coin.width, coin.height);
+
+                // Coin collection
+                if (checkCollision(player, coin)) {
+                    coins.splice(index, 1);
+                    score += 10;
+                    document.getElementById('score').textContent = `Punti: ${score}`;
+
+                    if (score >= 1000) {
+                        victory();
+                    }
+                }
+
+                if (coin.x + coin.width < 0) {
+                    coins.splice(index, 1);
+                }
+            });
+
+            // Draw player with larger visual size but same hitbox
+            const visualOffsetX = (player.visualWidth - player.width) / 2;
+            const visualOffsetY = (player.visualHeight - player.height) / 2;
+            ctx.drawImage(playerImg, 
+                player.x - visualOffsetX, 
+                player.y - visualOffsetY, 
+                player.visualWidth, 
+                player.visualHeight
+            );
+
+            // Spawn impossible obstacle at 900 points
+            if (score === 900) {
+                obstacles.push({
+                    x: canvas.width,
+                    y: 0,
+                    width: 30,
+                    height: canvas.height
+                });
+            }
+        }
+
+        function checkCollision(a, b) {
+            return a.x < b.x + b.width &&
+                   a.x + a.width > b.x &&
+                   a.y < b.y + b.height &&
+                   a.y + a.height > b.y;
+        }
+
+        function gameOver() {
+            clearInterval(gameLoop);
+            alert(`Game Over! Hai totalizzato ${score} punti!`);
+            location.reload();
+        }
+
+        function victory() {
+            clearInterval(gameLoop);
+            alert('Congratulazioni! Hai vinto 1000 V-Bucks!');
+            location.reload();
+        }
+    </script>
+</body>
+</html>
